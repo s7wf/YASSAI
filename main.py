@@ -70,9 +70,9 @@ def capture_image():
             return largest_contour, corners
         return None, None
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
 
-    while True:
+    while cap.isOpened():
         ret, frame = cap.read()
         edged_frame = preprocess_frame(frame)
         largest_contour, corners = find_largest_contour_and_corners(edged_frame)
