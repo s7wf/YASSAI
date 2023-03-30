@@ -129,7 +129,7 @@ def split_image_into_cells(image, rows, cols):
     return cells
 
 def main():
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    pytesseract.pytesseract.tesseract_cmd = r'/usr/local/bin/tesseract'  # Replace with the correct path for your system
 
     image = capture_image()
     processed_image = process_image(image)
