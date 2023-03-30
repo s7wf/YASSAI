@@ -118,7 +118,56 @@ def preprocess_image(image):
 
     return thresholded
 
+def get_dominant_color(image):
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    pixels = np.float32(image.reshape(-1, 3))
 
+    n_colors = 1
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, 0.2)
+    _, labels, palette = cv2.kmeans(pixels, n_colors, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+
+    _, counts = np.unique(labels, return_counts=True)
+    dominant = palette[np.argmax(counts)]
+
+    return dominant
+
+def get_color_name(dominant_color):
+    colors = {
+        'red': [255, 0, 0],
+        'green': [0, 255, 0],
+        'blue': [0, 0, 255],
+        # Add more colors if needed
+    }
+
+    color_name = 'unknown'
+    min_distance = float('inf')
+
+    for name, color in colors.items():
+        distance = np.linalg.norm(np.array(dominant_color) - np.array(color))
+
+        if distance < min_distance:
+            min_distance = distance
+            color_name = name
+
+    return color_name
+
+def correct_perspective(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(blurred, 50, 150)
+
+    contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if contours:
+        largest_contour = max(contours, key=cv2.contourArea)
+        epsilon = 0.02 * cv2.arcLength(largest_contour, True)
+        corners = cv2.approxPolyDP(largest_contour, epsilon, True)
+
+        if len(corners) == 4:
+            corners = np.array([corner[0] for corner in corners])
+            return four_point_transform(image, corners)
+
+    # If the perspective correction was not possible, return the original image
+    return image
 
 def process_image(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -147,9 +196,31 @@ def analyze_colors(image):
     # This function should be implemented to analyze the colored blocks and provide confidence for each color.
     pass
 
+def detect_colored_areas(image, lower_color, upper_color):
+    # Convert the image to HSV color space
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    # Define the color range for the filter
+    lower_range = np.array(lower_color)
+    upper_range = np.array(upper_color)
+
+    # Create a mask using the specified color range
+    mask = cv2.inRange(hsv, lower_range, upper_range)
+
+    # Apply the mask to the image
+    filtered_image = cv2.bitwise_and(image, image, mask=mask)
+
+    # Convert the filtered image to grayscale
+    gray = cv2.cvtColor(filtered_image, cv2.COLOR_BGR2GRAY)
+
+    # Find contours in the grayscale image
+    contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    return contours
+
 def split_image_into_cells(image, rows, cols):
     cells = []
-    h, w = image.shape
+    h, w, _ = image.shape  # Add an underscore to handle the channels dimension
     cell_width = w // cols
     cell_height = h // rows
 
@@ -168,21 +239,39 @@ def main():
     image = capture_image()
     processed_image = process_image(image)
 
+    # Process the input image
+    skewed_image = correct_perspective(image)
+
+    # Define the color range for red in HSV color space
+    lower_red = [0, 50, 50]
+    upper_red = [10, 255, 255]
+
+    lower_blue = [110, 50, 50]
+    upper_blue = [130, 255, 255]
+
+    # Detect red areas in the image
+    red_contours = detect_colored_areas(skewed_image, lower_red, upper_red)
+
+    # Detect blue areas in the image
+    blue_contours = detect_colored_areas(skewed_image, lower_blue, upper_blue)
+
     # Split the image into cells
     rows, cols = 7, 2
-    cells = split_image_into_cells(processed_image, rows, cols)
+    cells = split_image_into_cells(skewed_image, rows, cols)
 
-    # Extract text from each cell and store it in a nested list
+    # Extract text and color from each cell and store it in a nested list
     table_data = []
     for row in cells:
         table_row = []
         for cell in row:
             text = extract_text(cell)
-            table_row.append(text)
+            dominant_color = get_dominant_color(cell)
+            color_name = get_color_name(dominant_color)
+            table_row.append((text, color_name))
         table_data.append(table_row)
 
     # Create a pandas DataFrame from the nested list
-    table = pd.DataFrame(table_data)
+    table = pd.DataFrame(table_data, columns=['Text', 'Color'])
 
     print(table)
 
