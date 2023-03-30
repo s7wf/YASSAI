@@ -16,26 +16,30 @@ def order_points(pts):
 
     return rect
 
-def four_point_transform(image, pts):
-    rect = order_points(pts)
-    (tl, tr, br, bl) = rect
+def four_point_transform(image, points):
+    points = order_points(points)
+    (tl, tr, br, bl) = points
 
-    widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
-    widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
-    maxWidth = max(int(widthA), int(widthB))
+    # Calculate the width of the new image
+    width_top = np.linalg.norm(tr - tl)
+    width_bottom = np.linalg.norm(br - bl)
+    max_width = max(int(width_top), int(width_bottom))
 
-    heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
-    heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
-    maxHeight = max(int(heightA), int(heightB))
+    # Calculate the height of the new image
+    height_left = np.linalg.norm(bl - tl)
+    height_right = np.linalg.norm(br - tr)
+    max_height = max(int(height_left), int(height_right))
 
+    # Create a new array of points for the transformed image
     dst = np.array([
         [0, 0],
-        [maxWidth - 1, 0],
-        [maxWidth - 1, maxHeight - 1],
-        [0, maxHeight - 1]], dtype="float32")
+        [max_width - 1, 0],
+        [max_width - 1, max_height - 1],
+        [0, max_height - 1]], dtype="float32")
 
-    M = cv2.getPerspectiveTransform(rect, dst)
-    warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+    # Calculate the perspective transform matrix and warp the image
+    M = cv2.getPerspectiveTransform(points, dst)
+    warped = cv2.warpPerspective(image, M, (max_width, max_height))
 
     return warped
 
@@ -72,7 +76,7 @@ def capture_image():
 
     cap = cv2.VideoCapture(1)
 
-    while cap.isOpened():
+    while True:
         ret, frame = cap.read()
         edged_frame = preprocess_frame(frame)
         largest_contour, corners = find_largest_contour_and_corners(edged_frame)
@@ -90,6 +94,9 @@ def capture_image():
             if corners is not None and len(corners) == 4:
                 corners = np.array([corner[0] for corner in corners])
                 frame = four_point_transform(frame, corners)
+                cv2.imshow('Transformed Image', frame)  # Display the transformed image
+                cv2.waitKey(2000)  # Wait for 2 seconds (2000 ms)
+                cv2.destroyAllWindows()  # Close the window
             break
 
     cap.release()
