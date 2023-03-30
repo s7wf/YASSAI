@@ -103,6 +103,23 @@ def capture_image():
     cv2.destroyAllWindows()
     return frame
 
+def preprocess_image(image):
+    # Check if the input image is grayscale
+    if len(image.shape) == 2 or (len(image.shape) == 3 and image.shape[2] == 1):
+        gray = image
+    else:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Apply a Gaussian blur
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # Apply adaptive thresholding
+    thresholded = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+
+    return thresholded
+
+
+
 def process_image(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -112,9 +129,19 @@ def process_image(image):
     return thresh
 
 def extract_text(image):
-    config = '--psm 6'
-    text = pytesseract.image_to_string(image, config=config)
-    return text
+    # Convert PIL Image to OpenCV format (NumPy array)
+    image_np = np.array(image)
+
+    # Preprocess image
+    processed_image = preprocess_image(image_np)
+
+    # Set Tesseract configurations
+    config = '--psm 6 --oem 3 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+
+    # Extract text from the image
+    text = pytesseract.image_to_string(processed_image, config=config)
+
+    return text.strip()
 
 def analyze_colors(image):
     # This function should be implemented to analyze the colored blocks and provide confidence for each color.
