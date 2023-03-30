@@ -92,9 +92,9 @@ def capture_image():
                 frame = four_point_transform(frame, corners)
             break
 
-        cap.release()
-        cv2.destroyAllWindows()
-        return frame
+    cap.release()
+    cv2.destroyAllWindows()
+    return frame
 
 def process_image(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
